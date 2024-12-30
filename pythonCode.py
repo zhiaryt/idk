@@ -17,6 +17,7 @@ ADMIN_PASSWORD = ""
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///products.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'your_secret_key'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['JWT_SECRET_KEY'] = 'your_jwt_secret_key' 
@@ -37,10 +38,10 @@ def admin_login():
     password = data.get('password')
     if check_password_hash(ADMIN_PASSWORD_HASH, password):
 
-        access_token = create_access_token(identity='admin') 
+        access_token = create_access_token(identity='admin')  # ایجاد توکن JWT
         return jsonify({'message': 'Login Was Successful', 'status': 'success', 'access_token': access_token}), 200
     else:
-
+        # ورود ناموفق
         return jsonify({'message': 'Login Was Failed', 'status': 'failed'}), 400
 
 # مسیر برای تایید دسترسی
@@ -74,11 +75,13 @@ class Product(db.Model):
 
 # مسیر برای دسترسی به تصاویر
 @app.route('/uploads/<filename>')
+@jwt_required()
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 # اضافه کردن محصول جدید
 @app.route('/api/products', methods=['POST'])
+@jwt_required()
 def add_product():
     if 'image' not in request.files:
         return jsonify({'error': 'No image file part'}), 200
@@ -145,6 +148,7 @@ def get_products():
 
 # حذف محصول با شناسه
 @app.route('/api/products/<int:id>', methods=['DELETE'])
+@jwt_required()
 def delete_product(id):
     product = Product.query.get(id)
     if product:
@@ -156,19 +160,35 @@ def delete_product(id):
     
 
 @app.route('/api/products/updateSize/<int:id>', methods=['PUT'])
+@jwt_required()
 def update_size(id):
-
-    product = Product.query.get(id)  # دریافت محصول با شناسه
+    product = Product.query.get(id)
 
     data = request.get_json()
 
-    edit_size = data.get("editSize", {})
 
-    for size, stock in edit_size.items():
-        product.size_availability[size] = int(stock)
+    size = data.get('size')
+    stock = int(data.get('stock'))
 
-    db.session.commit()
-    return jsonify({'message':f'{product.size_availability}', 'status':'ok'}), 200
+    size_to_add = product.size_availability
+    size_to_add[size] = stock
+
+    new_size_stock = product.size_availability
+
+    try:
+
+        product.size_availability = new_size_stock
+        db.session.commit()
+        print(product.size_availability)
+        print(size_to_add)
+        return jsonify({'message':'dada has sended', 'status':'SENDED'}), 200
+    
+    except:
+
+        return jsonify({'message':'data has not sended', 'status':'NOT_SENDED'}), 400
+
+    
+
 
 if __name__ == '__main__':
     with app.app_context():
